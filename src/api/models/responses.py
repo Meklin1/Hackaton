@@ -13,3 +13,6 @@ class SuccessResponse(BaseModel):
     message: str
     data: Optional[List[Dict[str, Any]]] = None
     timestamp: datetime = datetime.now()
+
+class ModelDataResponse(BaseModel):
+    data: Dict[str, Any] = None

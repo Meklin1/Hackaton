@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from src.api.routers import inference
+from src.api.routers import train
 
 app = FastAPI(
     title="Exoplanet Classification Server",
@@ -18,6 +19,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(inference.router)
+app.include_router(train.router)
 
 # Health Endpoint
 @app.get("/")

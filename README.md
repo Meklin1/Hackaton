@@ -21,13 +21,6 @@ For data and resources related to this challenge, refer to the Resources tab at 
 ### Inference
 - `POST /inference/classify` - Get exoplanet predictions based on CSV
 
-### Data Management
-- `POST /data/upload-csv` - Upload CSV files
-- `GET /data/models` - List available models
-- `GET /data/models/{model_name}` - Get model details
-- `POST /data/select-model` - Select a model
-- `POST /data/stats` - Get data statistics
-- `POST /data/preprocess` - Preprocess data
 
 
 

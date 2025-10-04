@@ -1,0 +1,15 @@
+services:
+  
+  backend:
+    container_name: exoplanet-server
+    
+    build:
+      context: .
+      dockerfile: dockerfiles/server.dockerfile
+    
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./src:/app/src
+    
+    command: ["--reload", "--host", "0.0.0.0", "--port", "8000"]

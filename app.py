@@ -250,27 +250,28 @@ def classify_exoplanets(file_content: bytes, filename: str, api_url: str) -> pd.
     except Exception as e:
         return {"error": f"Unexpected error: {str(e)}"}
 
-def train_model(file_content: bytes, filename: str, api_url: str, hyperparameters: Dict = None) -> Dict:
-    """Send CSV to FastAPI backend for model training"""
+def train_model(csv_id: int, model_name: str, api_url: str, hyperparameters: Dict = None) -> Dict:
+    """Send training request to FastAPI backend"""
     try:
         # Ensure API URL doesn't have trailing slash
         api_url = api_url.rstrip('/')
 
-        files = {"csv_file": (filename, file_content, "text/csv")}
-        headers = {"Accept": "application/json"}
+        # Prepare form data
+        data = {
+            "model_name": model_name
+        }
 
-        # Prepare data dictionary with hyperparameters if provided
-        data = {}
         if hyperparameters:
             import json
             data["hyperparameters"] = json.dumps(hyperparameters)
 
+        # Send POST request with csv_id as numeric query parameter
         response = requests.post(
             f"{api_url}/model/train",
-            files=files,
+            params={"csv_id": csv_id},
             data=data,
-            headers=headers,
-            timeout=60  # Training might take longer
+            headers={"Accept": "application/json"},
+            timeout=300  # Training might take longer
         )
 
         if response.status_code == 200:
@@ -402,7 +403,6 @@ def render_editable_headers(df: pd.DataFrame, page_type: str = "inference"):
 
             # Determine header status
             is_valid = current_value in expected_headers
-            is_required = current_value in expected_headers
 
             # Color code the label
             if is_valid:
@@ -583,11 +583,12 @@ st.markdown('<p class="subtitle">Advanced machine learning classification for ex
 # Sidebar info
 st.sidebar.markdown("## 📊 About This Tool")
 st.sidebar.markdown("""
-This application uses machine learning to classify exoplanet candidates into three categories:
+This application uses machine learning to classify exoplanet candidates:
 
-- **✅ CONFIRMED** - Verified exoplanet
-- **❌ FALSE POSITIVE** - Not an exoplanet
-- **🔍 CANDIDATE** - Requires additional data
+- **✅ True** - Confirmed exoplanet
+- **❌ False** - Not an exoplanet
+
+Binary classification with confidence scores for each prediction.
 
 Built for astronomical researchers and data scientists.
 """)
@@ -613,7 +614,6 @@ st.sidebar.markdown("**💡 Tips:**")
 st.sidebar.info("""
 - Headers are case-sensitive
 - Extra columns are allowed
-- Missing values will be handled automatically
 - Edit headers inline if they don't match
 """)
 
@@ -701,83 +701,107 @@ if st.session_state.current_page == 'Inference':
 
     st.markdown("---")
 
-    st.markdown("### 📤 Upload CSV File")
+    # Display dataset data after selection
+    if 'selected_dataset' in st.session_state and 'datasets_list' in st.session_state:
+        st.markdown("### 📊 Dataset Preview")
 
-    uploaded_file = st.file_uploader(
-        "Choose a CSV file containing exoplanet candidate measurements",
-        type=["csv"],
-        help="Upload a CSV file with exoplanet transit and stellar parameters"
-    )
+        # Get the selected dataset details
+        datasets_response = st.session_state['datasets_list']
+        if isinstance(datasets_response, dict) and 'data' in datasets_response:
+            datasets_data = datasets_response['data']
 
-    if uploaded_file is not None:
-        # Read file content
-        file_content = uploaded_file.read()
+            # Find the selected dataset
+            selected_dataset_data = None
+            for idx, dataset in datasets_data.items():
+                if dataset.get('name', '') == st.session_state['selected_dataset']:
+                    selected_dataset_data = dataset
+                    break
 
-        # Preview original CSV
-        st.markdown("### 📊 Data Preview")
-        try:
-            df_original = pd.read_csv(io.BytesIO(file_content))
+            if selected_dataset_data:
+                # Display dataset metrics
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("📝 Rows", selected_dataset_data.get('rows', 'N/A'))
+                with col2:
+                    st.metric("📋 Columns", selected_dataset_data.get('columns', 'N/A'))
+                with col3:
+                    st.metric("💾 File Size", selected_dataset_data.get('size', 'N/A'))
 
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("📝 Rows", f"{len(df_original):,}")
-            with col2:
-                st.metric("📋 Columns", len(df_original.columns))
-            with col3:
-                st.metric("💾 File Size", f"{len(file_content) / 1024:.1f} KB")
+                # Classify button
+                st.markdown("---")
+                if 'selected_model' in st.session_state:
+                    if st.button("🚀 Classify Exoplanets", type="primary", use_container_width=True):
+                        # Find the numeric IDs for the selected model and dataset
+                        model_id = None
+                        csv_id = None
 
-            # Show preview with option to expand
-            with st.expander("🔍 View Data Sample", expanded=True):
-                st.dataframe(df_original.head(10), use_container_width=True)
+                        # Find model_id
+                        if 'models_list' in st.session_state:
+                            models_data = st.session_state['models_list'].get('data', {})
+                            for idx, model in models_data.items():
+                                if model.get('name', '') == st.session_state['selected_model']:
+                                    model_id = int(idx)
+                                    break
 
-            st.markdown("---")
+                        # Find csv_id
+                        for idx, dataset in datasets_data.items():
+                            if dataset.get('name', '') == st.session_state['selected_dataset']:
+                                csv_id = int(idx)
+                                break
 
-            # Editable headers section
-            validation_result = render_editable_headers(df_original, "inference")
-
-            # Classify button
-            st.markdown("---")
-
-            if validation_result['can_classify']:
-                st.markdown('<div class="success-box"><strong>✅ Ready to classify!</strong> All required headers are present.</div>', unsafe_allow_html=True)
-
-                if validation_result['extra']:
-                    st.markdown('<div class="warning-box"><strong>⚠️ Note:</strong> Extra columns will be included in the output but not used for classification.</div>', unsafe_allow_html=True)
-
-                if st.button("🚀 Classify Exoplanets", type="primary", use_container_width=True):
-                    # Apply header renaming and convert to lowercase
-                    df_renamed = df_original.copy()
-                    df_renamed.columns = [h.lower() for h in validation_result['edited_headers']]
-
-                    # Filter to only keep EXPECTED_HEADERS columns (lowercase)
-                    required_headers_lower = [h.lower() for h in EXPECTED_HEADERS]
-                    # Only keep columns that are in EXPECTED_HEADERS
-                    df_renamed = df_renamed[[col for col in required_headers_lower if col in df_renamed.columns]]
-
-                    # Convert to CSV
-                    csv_buffer = io.StringIO()
-                    df_renamed.to_csv(csv_buffer, index=False)
-                    renamed_content = csv_buffer.getvalue().encode()
-
-                    with st.spinner("🔄 Classifying exoplanets... This may take a moment."):
-                        result = classify_exoplanets(renamed_content, uploaded_file.name, API_URL)
-
-                        if isinstance(result, dict) and "error" in result:
-                            st.error(f"❌ {result['error']}")
+                        if model_id is None:
+                            st.error("❌ Could not find model ID")
+                        elif csv_id is None:
+                            st.error("❌ Could not find dataset ID")
                         else:
-                            st.session_state['classified_df'] = result
-                            st.success("✅ Classification complete!")
-                            st.rerun()
-            else:
-                st.markdown('<div class="warning-box"><strong>⚠️ Cannot classify yet</strong></div>', unsafe_allow_html=True)
-                if validation_result['missing']:
-                    st.error("❌ Please ensure all required headers are present and correctly named.")
-                if validation_result['duplicates']:
-                    st.error("❌ Duplicate header names detected. Each column must have a unique name.")
+                            with st.spinner("🔄 Classifying exoplanets... This may take a moment."):
+                                # Make API call to classify with model_id and csv_id as query parameters
+                                try:
+                                    classify_response = requests.post(
+                                        f"{API_URL}/inference/classify",
+                                        params={
+                                            "model_id": str(model_id),
+                                            "csv_id": str(csv_id)
+                                        },
+                                        headers={"Accept": "application/json"},
+                                        timeout=60
+                                    )
 
-        except Exception as e:
-            st.error(f"❌ Error reading CSV file: {str(e)}")
-            st.info("💡 Please ensure your file is a valid CSV format.")
+                                    if classify_response.status_code == 200:
+                                        # Parse JSON response
+                                        result_json = classify_response.json()
+
+                                        # Debug: Show response structure
+                                        st.write("**Debug - Response received:**")
+                                        st.json(result_json)
+
+                                        # Extract data array and convert to DataFrame
+                                        if 'data' in result_json and isinstance(result_json['data'], list):
+                                            result_df = pd.DataFrame(result_json['data'])
+                                            st.session_state['classified_df'] = result_df
+                                            st.session_state['classification_message'] = result_json.get('message', 'Classification complete')
+                                            st.success("✅ Classification complete!")
+                                            st.rerun()
+                                        else:
+                                            st.error("❌ Unexpected response format from backend")
+                                            st.write(f"**Response keys:** {list(result_json.keys())}")
+                                            st.write(f"**Has 'data' key:** {'data' in result_json}")
+                                            if 'data' in result_json:
+                                                st.write(f"**Type of 'data':** {type(result_json['data'])}")
+                                                st.write(f"**Value of 'data':** {result_json['data']}")
+                                    else:
+                                        st.error(f"❌ Classification failed (HTTP {classify_response.status_code})")
+                                        st.code(classify_response.text)
+                                except Exception as e:
+                                    st.error(f"❌ Error during classification: {str(e)}")
+                                    import traceback
+                                    st.code(traceback.format_exc())
+                else:
+                    st.warning("⚠️ Please select a model first.")
+            else:
+                st.warning("⚠️ Selected dataset not found.")
+    else:
+        st.info("💡 Please select both a model and a dataset to proceed.")
 
     # ---------------------------
     # Display Results
@@ -785,6 +809,10 @@ if st.session_state.current_page == 'Inference':
     if 'classified_df' in st.session_state:
         st.markdown("---")
         st.markdown("### 🎯 Classification Results")
+
+        # Show classification message if available
+        if 'classification_message' in st.session_state:
+            st.info(f"ℹ️ {st.session_state['classification_message']}")
 
         df_result = st.session_state['classified_df']
 
@@ -795,36 +823,81 @@ if st.session_state.current_page == 'Inference':
                 del st.session_state['classified_df']
                 st.rerun()
         else:
-            # Statistics
-            if 'exoplanet_status' in df_result.columns:
-                st.markdown("#### 📈 Classification Summary")
+            # Display summary statistics
+            st.markdown("#### 📈 Classification Summary")
 
-                status_counts = df_result['exoplanet_status'].value_counts()
+            col1, col2, col3, col4 = st.columns(4)
 
-                col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("🌍 Total Predictions", f"{len(df_result):,}")
+            with col2:
+                if 'is_exoplanet' in df_result.columns:
+                    positive_count = len(df_result[df_result['is_exoplanet'] == 1])
+                    pct = (positive_count / len(df_result) * 100) if len(df_result) > 0 else 0
+                    st.metric("✅ Positive (True)", f"{positive_count:,}", f"{pct:.1f}%")
+            with col3:
+                if 'is_exoplanet' in df_result.columns:
+                    negative_count = len(df_result[df_result['is_exoplanet'] == 0])
+                    pct = (negative_count / len(df_result) * 100) if len(df_result) > 0 else 0
+                    st.metric("❌ Negative (False)", f"{negative_count:,}", f"{pct:.1f}%")
+            with col4:
+                if 'label_confidence' in df_result.columns:
+                    avg_conf = df_result['label_confidence'].mean()
+                    st.metric("📊 Avg Confidence", f"{avg_conf:.3f}")
 
-                with col1:
-                    st.metric("🌍 Total Candidates", f"{len(df_result):,}")
-                with col2:
-                    confirmed = status_counts.get('CONFIRMED', 0)
-                    pct = (confirmed / len(df_result) * 100) if len(df_result) > 0 else 0
-                    st.metric("✅ Confirmed", f"{confirmed:,}", f"{pct:.1f}%")
-                with col3:
-                    false_pos = status_counts.get('FALSE POSITIVE', 0)
-                    pct = (false_pos / len(df_result) * 100) if len(df_result) > 0 else 0
-                    st.metric("❌ False Positive", f"{false_pos:,}", f"{pct:.1f}%")
-                with col4:
-                    candidate = status_counts.get('CANDIDATE', 0)
-                    pct = (candidate / len(df_result) * 100) if len(df_result) > 0 else 0
-                    st.metric("🔍 Candidate", f"{candidate:,}", f"{pct:.1f}%")
-
-            # Display results table
-            st.markdown("#### 📊 Detailed Results")
+            # Display interactive spreadsheet with conditional formatting
+            st.markdown("#### 📊 Interactive Results Spreadsheet")
             st.markdown(f"**Total columns:** {len(df_result.columns)} | **Rows:** {len(df_result):,}")
-            display_dataframe_styled(df_result)
 
-            # Download button
-            st.markdown("---")
+            # Reorder columns to show label_confidence and label first
+            if 'label_confidence' in df_result.columns and 'is_exoplanet' in df_result.columns:
+                # Get all other columns
+                other_cols = [col for col in df_result.columns if col not in ['label_confidence', 'is_exoplanet']]
+                # Reorder: label_confidence, label, then rest
+                df_display = df_result[['label_confidence', 'is_exoplanet'] + other_cols].copy()
+            else:
+                df_display = df_result.copy()
+
+            # Convert label column to True/False display
+            if 'is_exoplanet' in df_display.columns:
+                df_display['is_exoplanet'] = df_display['is_exoplanet'].apply(lambda x: 'True' if x == 1 else 'False')
+
+            # Apply conditional formatting: green background for rows where label == 1 (True)
+            def highlight_positive_label(row):
+                if 'is_exoplanet' in row and row['is_exoplanet'] == 'True':
+                    return ['background-color: #d4edda; color: #155724'] * len(row)
+                else:
+                    return [''] * len(row)
+
+            # Style the dataframe
+            styled_df = df_display.style.apply(highlight_positive_label, axis=1).format({
+                'label_confidence': '{:.4f}',
+                'pl_orbper': '{:.4f}',
+                'pl_trandurh': '{:.4f}',
+                'pl_rade': '{:.4f}',
+                'st_dist': '{:.4f}',
+                'st_pmdec': '{:.4f}',
+                'st_pmra': '{:.4f}',
+                'dec': '{:.6f}',
+                'pl_insol': '{:.4f}',
+                'pl_tranmid': '{:.5f}',
+                'ra': '{:.6f}',
+                'st_tmag': '{:.5f}',
+                'pl_trandep': '{:.0f}',
+                'pl_eqt': '{:.0f}',
+                'st_rad': '{:.4f}',
+                'st_logg': '{:.4f}',
+                'st_teff': '{:.4f}'
+            }, na_rep='N/A')
+
+            # Display as interactive dataframe with sorting and filtering
+            st.dataframe(
+                styled_df,
+                use_container_width=True,
+                height=600,
+                hide_index=True
+            )
+
             col1, col2 = st.columns(2)
 
             with col1:
@@ -838,12 +911,12 @@ if st.session_state.current_page == 'Inference':
                 )
 
             with col2:
-                if st.button("🔄 Process New File", use_container_width=True):
+                if st.button("🔄 Classify New Dataset", use_container_width=True):
                     # Clear session state
                     if 'classified_df' in st.session_state:
                         del st.session_state['classified_df']
-                    if 'edited_headers' in st.session_state:
-                        del st.session_state['edited_headers']
+                    if 'classification_message' in st.session_state:
+                        del st.session_state['classification_message']
                     st.rerun()
 
 elif st.session_state.current_page == 'Training':
@@ -851,51 +924,60 @@ elif st.session_state.current_page == 'Training':
     # Training Page
     # ---------------------------
     st.markdown("### 🎓 Model Training")
-    
-    st.markdown("### 📤 Upload Training CSV File")
-    
-    uploaded_file_training = st.file_uploader(
-        "Choose a CSV file containing exoplanet training data",
-        type=["csv"],
-        help="Upload a CSV file with exoplanet transit and stellar parameters for model training",
-        key="training_file_uploader"
-    )
-    
-    if uploaded_file_training is not None:
-        # Read file content
-        file_content_training = uploaded_file_training.read()
-        
-        # Preview original CSV
-        st.markdown("### 📊 Training Data Preview")
-        try:
-            df_original_training = pd.read_csv(io.BytesIO(file_content_training))
-            
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("📝 Rows", f"{len(df_original_training):,}")
-            with col2:
-                st.metric("📋 Columns", len(df_original_training.columns))
-            with col3:
-                st.metric("💾 File Size", f"{len(file_content_training) / 1024:.1f} KB")
-            
-            # Show preview with option to expand
-            with st.expander("🔍 View Training Data Sample", expanded=True):
-                st.dataframe(df_original_training.head(10), use_container_width=True)
-            
-            st.markdown("---")
-            
-            # Editable headers section
-            validation_result_training = render_editable_headers(df_original_training, "training")
-            
-            # Training button
-            st.markdown("---")
-            
-            if validation_result_training['can_classify']:
-                st.markdown('<div class="success-box"><strong>✅ Ready for training!</strong> All required headers are present.</div>', unsafe_allow_html=True)
-                
-                if validation_result_training['extra']:
-                    st.markdown('<div class="warning-box"><strong>⚠️ Note:</strong> Extra columns will be included in the output but not used for training.</div>', unsafe_allow_html=True)
 
+    # Load datasets for dropdown
+    st.markdown("### 📊 Dataset Selection")
+
+    col1, col2 = st.columns([4, 1])
+    with col1:
+        # Get available datasets
+        if 'datasets_list' not in st.session_state:
+            st.info("💡 Click 'Load Datasets' to fetch available datasets from the backend.")
+        else:
+            datasets_response = st.session_state['datasets_list']
+            if isinstance(datasets_response, dict) and 'data' in datasets_response:
+                datasets_data = datasets_response['data']
+                dataset_names = [dataset.get('name', f'Dataset {idx}') for idx, dataset in datasets_data.items()]
+
+                if dataset_names:
+                    selected_training_dataset = st.selectbox(
+                        "Select Training Dataset",
+                        options=dataset_names,
+                        help="Choose which dataset to use for training"
+                    )
+                    st.session_state['selected_training_dataset'] = selected_training_dataset
+                else:
+                    st.warning("⚠️ No datasets available. Please upload a dataset first.")
+            else:
+                st.warning("⚠️ Failed to load datasets. Click 'Load Datasets' to retry.")
+
+    with col2:
+        if st.button("🔄 Load Datasets", use_container_width=True, key="training_load_datasets"):
+            with st.spinner("🔄 Loading datasets..."):
+                datasets = load_datasets(API_URL)
+                if isinstance(datasets, dict) and "error" in datasets:
+                    st.error(f"❌ {datasets['error']}")
+                else:
+                    st.session_state['datasets_list'] = datasets
+                    st.success("✅ Datasets loaded!")
+                    st.rerun()
+
+    st.markdown("---")
+
+    # Get dataset ID if selected
+    if 'selected_training_dataset' in st.session_state and 'datasets_list' in st.session_state:
+        datasets_response = st.session_state['datasets_list']
+        if isinstance(datasets_response, dict) and 'data' in datasets_response:
+            datasets_data = datasets_response['data']
+
+            # Find the selected dataset ID
+            selected_dataset_id = None
+            for idx, dataset in datasets_data.items():
+                if dataset.get('name', '') == st.session_state['selected_training_dataset']:
+                    selected_dataset_id = int(idx)
+                    break
+
+            if selected_dataset_id is not None:
                 # Hyperparameter configuration section
                 st.markdown("### ⚙️ Hyperparameter Configuration")
 
@@ -977,40 +1059,53 @@ elif st.session_state.current_page == 'Training':
 
                 st.markdown("---")
 
+                # Model name configuration
+                st.markdown("### 🏷️ Training Configuration")
+
+                model_name = st.text_input(
+                    "Model Name",
+                    value="exoplanet_model",
+                    help="Give your model a unique name",
+                    placeholder="e.g., exoplanet_model_v1"
+                )
+
+                st.markdown("---")
+
+                # Training button
                 if st.button("🚀 Start Training", type="primary", use_container_width=True):
-                    # Apply header renaming and convert to lowercase
-                    df_renamed_training = df_original_training.copy()
-                    df_renamed_training.columns = [h.lower() for h in validation_result_training['edited_headers']]
+                    if not model_name or model_name.strip() == "":
+                        st.error("❌ Please enter a model name")
+                    else:
+                        # Train model with selected dataset (using numeric ID)
+                        try:
+                            with st.spinner("🔄 Training model... This may take several minutes."):
+                                result = train_model(selected_dataset_id, model_name.strip(), API_URL, hyperparameters)
 
-                    # Filter to only keep EXPECTED_HEADERS_TRAINING columns (lowercase)
-                    required_headers_training_lower = [h.lower() for h in EXPECTED_HEADERS_TRAINING]
-                    # Only keep columns that are in EXPECTED_HEADERS_TRAINING
-                    df_renamed_training = df_renamed_training[[col for col in required_headers_training_lower if col in df_renamed_training.columns]]
+                            # Debug: Show what was returned
+                            st.write("**Debug - Training Response:**")
+                            st.json(result)
 
-                    # Convert to CSV
-                    csv_buffer_training = io.StringIO()
-                    df_renamed_training.to_csv(csv_buffer_training, index=False)
-                    renamed_content_training = csv_buffer_training.getvalue().encode()
-
-                    with st.spinner("🔄 Training model... This may take several minutes."):
-                        result = train_model(renamed_content_training, uploaded_file_training.name, API_URL, hyperparameters)
-
-                        if isinstance(result, dict) and "error" in result:
-                            st.error(f"❌ {result['error']}")
-                        else:
-                            st.session_state['training_result'] = result
-                            st.success("✅ Training complete!")
-                            st.rerun()
+                            # Check result
+                            if result is None:
+                                st.error("❌ Training returned no result")
+                            elif isinstance(result, dict) and "error" in result:
+                                st.error(f"❌ {result['error']}")
+                            elif isinstance(result, dict) and "data" in result:
+                                # Success case - has "data" key
+                                st.session_state['training_result'] = result
+                                st.success("✅ Training complete!")
+                                st.rerun()
+                            else:
+                                st.error(f"❌ Unexpected response format: {type(result)}")
+                                st.write(result)
+                        except Exception as e:
+                            st.error(f"❌ Training error: {str(e)}")
+                            import traceback
+                            st.code(traceback.format_exc())
             else:
-                st.markdown('<div class="warning-box"><strong>⚠️ Cannot train yet</strong></div>', unsafe_allow_html=True)
-                if validation_result_training['missing']:
-                    st.error("❌ Please ensure all required headers are present and correctly named.")
-                if validation_result_training['duplicates']:
-                    st.error("❌ Duplicate header names detected. Each column must have a unique name.")
-        
-        except Exception as e:
-            st.error(f"❌ Error reading CSV file: {str(e)}")
-            st.info("💡 Please ensure your file is a valid CSV format.")
+                st.warning("⚠️ Selected dataset not found.")
+    else:
+        st.info("💡 Please select a training dataset to proceed.")
 
     # ---------------------------
     # Display Training Results
@@ -1088,7 +1183,6 @@ elif st.session_state.current_page == 'Training':
             **Required Columns:**
             - All inference features
             - `exoplanet_status` (target variable)
-            - `confidence_score` (optional)
             """)
         
         with col2:

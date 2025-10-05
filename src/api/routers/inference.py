@@ -129,7 +129,7 @@ async def predict(
     except Exception as e:
         return ErrorResponse(error="Error predicting :(", detail=str(e))
 
-    df["label"] = labels
+    df["is_exoplanet"] = labels
     df["label_confidence"] = [max(probability) for probability in probabilities]
 
     return SuccessResponse(

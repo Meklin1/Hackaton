@@ -34,7 +34,7 @@ async def train_model(
         df = pd.read_csv(Path(csv_path))
 
     except Exception as e:
-        return ErrorResponse(error="Error reading CSV file :(", detail=str(e))
+        return ErrorResponse(error=f"Error reading CSV file : {str(e)}", detail=str(e))
 
     try:
         # Parse hyperparameters JSON string
@@ -43,7 +43,7 @@ async def train_model(
         logger.info(f"Decoded Hyperparameters: {hyperparams_dict}")
     except json.JSONDecodeError as e:
         return ErrorResponse(
-            error="Invalid hyperparameters JSON format :(", detail=str(e)
+            error=f"Invalid hyperparameters JSON format : {str(e)}", detail=str(e)
         )
 
     try:
@@ -61,12 +61,12 @@ async def train_model(
         load_success = load_model_dynamically(model_name_clean, model_path)
         
         if not load_success:
-            logger.warning(f"Failed to load model {model_name_clean} dynamically")
+            logger.warning(f"Failed to load model: {model_name_clean} dynamically")
             # Don't fail the training, just warn - model will be available after restart
         
     except Exception as e:
-        return ErrorResponse(error=f"Error training model :( {str(e)}", detail=str(e))
+        return ErrorResponse(error=f"Error training model: {str(e)}", detail=str(e))
 
     return SuccessResponse(
-        message=f"Model trained successfully :D! in {len(df)}", data=[traing_status]
+        message=f"Model trained successfully in {len(df)} data points", data=[traing_status]
     )

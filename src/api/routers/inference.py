@@ -150,7 +150,7 @@ async def predict(
         df = pd.read_csv(Path(csv_path))
 
     except Exception as e:
-        return ErrorResponse(error="Error reading CSV file :(", detail=str(e))
+        return ErrorResponse(error=f"Error reading CSV file: {str(e)}", detail=str(e))
 
     try:
         model_name = models_info.get(model_id).get("name")
@@ -163,10 +163,10 @@ async def predict(
         labels = inference_model.model.predict(df)
         probabilities = inference_model.model.predict_proba(df)
     except Exception as e:
-        return ErrorResponse(error="Error predicting :(", detail=str(e))
+        return ErrorResponse(error=f"Error making predictions: {str(e)}", detail=str(e))
 
     # Add predictions to the dataframe
-    df["label"] = labels
+    df["is_exoplanet"] = labels
     df["label_confidence"] = [max(probability) for probability in probabilities]
 
     # Convert to CSV

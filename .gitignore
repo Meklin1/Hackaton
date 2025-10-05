@@ -10,3 +10,6 @@ wheels/
 .venv
 .env
 models/
+
+# Additional files
+/imagenet_classes.txt

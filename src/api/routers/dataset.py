@@ -1,5 +1,6 @@
 from fastapi import APIRouter, File, UploadFile, Depends
 from fastapi.responses import Response
+import pandas as pd
 from src.api.models.responses import SuccessResponse, DatasetDataResponse, ErrorResponse
 from pathlib import Path
 
@@ -47,16 +48,20 @@ async def get_datasets(datasets_info: dict = Depends(get_dataset_info)):
     )
 
 
-@router.get(f"/get-dataset/{dataset_id}")
+@router.get("/download/{dataset_id}")
 async def get_dataset(dataset_id: str, datasets_info: dict = Depends(get_dataset_info)):
     
-    csv_output = datasets_info.get(dataset_id).get("path").read_csv(index=False)
+    dataset_info = datasets_info.get(dataset_id)
+    if not dataset_info:
+        return ErrorResponse(error="Dataset not found", detail="Dataset not found")
+    
+    file_path = dataset_info.get("path")
     # Return as CSV file download
     return Response(
-        content=csv_output,
+        content=file_path.read_bytes(),
         media_type="text/csv",
         headers={
-            "Content-Disposition": "attachment; filename=exoplanet_predictions.csv"
+            "Content-Disposition": f"attachment; filename={file_path.name}"
         },
     )
 

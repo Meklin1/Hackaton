@@ -2,11 +2,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from src.api.routers import inference
 from src.api.routers import train
+from src.api.routers import dataset
 
 app = FastAPI(
     title="Exoplanet Classification Server",
     description="AI/ML server for exoplanet classification using NASA datasets",
-    version="1.0.0"
+    version="1.0.0",
 )
 
 # Add CORS middleware
@@ -18,8 +19,11 @@ app.add_middleware(
 )
 
 # Include routers
+app.include_router(dataset.router)
 app.include_router(inference.router)
 app.include_router(train.router)
+
+
 
 # Health Endpoint
 @app.get("/")
@@ -28,8 +32,9 @@ async def home():
     return {
         "message": "Exoplanet Classification Server is running!",
         "status": "healthy",
-        "version": "1.0.0"
+        "version": "1.0.0",
     }
+
 
 @app.get("/health")
 async def health_check():
@@ -38,9 +43,5 @@ async def health_check():
         "status": "healthy",
         "service": "exoplanet-classification",
         "version": "1.0.0",
-        "endpoints": {
-            "data": "/data",
-            "inference": "/inference",
-            "docs": "/docs"
-        }
+        "endpoints": {"data": "/data", "inference": "/inference", "docs": "/docs"},
     }

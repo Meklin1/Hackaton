@@ -16,3 +16,6 @@ class SuccessResponse(BaseModel):
 
 class ModelDataResponse(BaseModel):
     data: Dict[str, Any] = None
+
+class DatasetDataResponse(BaseModel):
+    data: Dict[str, Any] = None

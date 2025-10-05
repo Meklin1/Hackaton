@@ -595,27 +595,6 @@ Built for astronomical researchers and data scientists.
 
 st.sidebar.markdown("---")
 
-# Show expected headers based on current page
-with st.sidebar.expander("📋 Required CSV Headers", expanded=False):
-    if st.session_state.current_page == 'Training':
-        st.markdown("**Training CSV must contain these columns:**")
-        headers_to_show = EXPECTED_HEADERS_TRAINING
-    else:
-        st.markdown("**Inference CSV must contain these columns:**")
-        headers_to_show = EXPECTED_HEADERS_INFERENCE
-    
-    for i, header in enumerate(headers_to_show, 1):
-        description = HEADER_DESCRIPTIONS.get(header, "")
-        st.markdown(f"**{i}. `{header}`**")
-        st.caption(description)
-
-st.sidebar.markdown("---")
-st.sidebar.markdown("**💡 Tips:**")
-st.sidebar.info("""
-- Headers are case-sensitive
-- Extra columns are allowed
-- Edit headers inline if they don't match
-""")
 
 # ---------------------------
 # Page Content
@@ -703,7 +682,6 @@ if st.session_state.current_page == 'Inference':
 
     # Display dataset data after selection
     if 'selected_dataset' in st.session_state and 'datasets_list' in st.session_state:
-        st.markdown("### 📊 Dataset Preview")
 
         # Get the selected dataset details
         datasets_response = st.session_state['datasets_list']
@@ -720,12 +698,6 @@ if st.session_state.current_page == 'Inference':
             if selected_dataset_data:
                 # Display dataset metrics
                 col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("📝 Rows", selected_dataset_data.get('rows', 'N/A'))
-                with col2:
-                    st.metric("📋 Columns", selected_dataset_data.get('columns', 'N/A'))
-                with col3:
-                    st.metric("💾 File Size", selected_dataset_data.get('size', 'N/A'))
 
                 # Classify button
                 st.markdown("---")
@@ -1112,7 +1084,6 @@ elif st.session_state.current_page == 'Training':
     # ---------------------------
     if 'training_result' in st.session_state:
         st.markdown("---")
-        st.markdown("### 🎯 Training Results")
 
         training_result = st.session_state['training_result']
 
@@ -1123,12 +1094,15 @@ elif st.session_state.current_page == 'Training':
                 del st.session_state['training_result']
                 st.rerun()
         else:
+            # Display success message
+            st.success("✅ Training finished successfully!")
+
             # Display only training metrics
             if isinstance(training_result, dict):
                 # Display training data
                 if 'data' in training_result and isinstance(training_result['data'], list) and len(training_result['data']) > 0:
                     training_data = training_result['data'][0]
-                    
+
                     st.markdown("#### 🎯 Training Metrics")
                     
                     col1, col2, col3 = st.columns(3)
@@ -1204,17 +1178,7 @@ elif st.session_state.current_page == 'Models':
     # Models Page
     # ---------------------------
     st.markdown("### 🤖 Model Management")
-
-    # Refresh button
-    col1, col2 = st.columns([4, 1])
-    with col1:
-        st.markdown("View and manage available models from the backend.")
-    with col2:
-        if st.button("🔄 Refresh Models", use_container_width=True):
-            if 'models_list' in st.session_state:
-                del st.session_state['models_list']
-            st.rerun()
-
+    st.markdown("View and manage available models from the backend.")
     st.markdown("---")
 
     # Load models button
@@ -1280,18 +1244,27 @@ elif st.session_state.current_page == 'Dataset':
     # Dataset Page
     # ---------------------------
     st.markdown("### 📊 Dataset Management")
-
-    # Refresh and Load buttons
-    col1, col2 = st.columns([4, 1])
-    with col1:
-        st.markdown("View, manage, and upload datasets stored on the server.")
-    with col2:
-        if st.button("🔄 Refresh Datasets", use_container_width=True):
-            if 'datasets_list' in st.session_state:
-                del st.session_state['datasets_list']
-            st.rerun()
-
+    st.markdown("View, manage, and upload datasets stored on the server.")
     st.markdown("---")
+
+    # Collapsible guide for required dataset features
+    with st.expander("📋 Required Features for Datasets", expanded=False):
+        st.markdown("**Inference CSV must include these features:**")
+        inference_features = [
+            'pl_orbper', 'pl_trandurh', 'pl_rade', 'st_dist', 'st_pmdec',
+            'st_pmra', 'dec', 'pl_insol', 'pl_tranmid', 'ra', 'st_tmag',
+            'pl_trandep', 'pl_eqt', 'st_rad', 'st_logg', 'st_teff'
+        ]
+
+        for i, header in enumerate(inference_features, 1):
+            description = HEADER_DESCRIPTIONS.get(header, "")
+            st.markdown(f"**{i}. `{header}`**")
+            if description:
+                st.caption(description)
+
+        st.markdown("---")
+        st.markdown("**Training-only label:**")
+        st.markdown("- **`exoplanet_status`**: 1 (exoplanet) or 0 (not exoplanet). Used only for training and should be omitted for inference/testing.")
 
     # Load datasets button
     if st.button("📥 Load Datasets", type="primary", use_container_width=True):
@@ -1410,8 +1383,6 @@ elif st.session_state.current_page == 'Dataset':
                         st.error(f"❌ {result['error']}")
                     else:
                         st.success(f"✅ Dataset uploaded successfully!")
-                        if isinstance(result, dict):
-                            st.json(result)
 
         except Exception as e:
             st.error(f"❌ Error reading CSV file: {str(e)}")
@@ -1445,28 +1416,7 @@ elif st.session_state.current_page == 'Help':
     # ---------------------------
     # Help Page
     # ---------------------------
-    st.markdown("### ❓ Help & Documentation")
-    st.markdown("Comprehensive guide to using the Exoplanet Classification System")
-
-    st.markdown("---")
-
-    # Table of Contents
-    st.markdown("## 📑 Table of Contents")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("""
-        - [Machine Learning Models](#machine-learning-models)
-        - [Classification Categories](#classification-categories)
-        - [Using the System](#using-the-system)
-        """)
-    with col2:
-        st.markdown("""
-        - [Data Requirements](#data-requirements)
-        - [API Information](#api-information)
-        - [Troubleshooting](#troubleshooting)
-        """)
-
-    st.markdown("---")
+    
 
     # Machine Learning Models
     st.markdown("## 🤖 Machine Learning Models")
@@ -1532,57 +1482,7 @@ elif st.session_state.current_page == 'Help':
 
     st.markdown("---")
 
-    # Classification Categories
-    st.markdown("## 🏷️ Classification Categories")
-
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        st.markdown("""
-        <div class="success-box">
-            <h4>✅ CONFIRMED</h4>
-            <p><strong>Definition:</strong> Verified exoplanet with strong evidence</p>
-            <p><strong>Confidence:</strong> >85%</p>
-            <p><strong>Characteristics:</strong></p>
-            <ul>
-                <li>Clear transit signal</li>
-                <li>Consistent orbital period</li>
-                <li>Ruled out false positives</li>
-            </ul>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with col2:
-        st.markdown("""
-        <div class="warning-box">
-            <h4>❌ FALSE POSITIVE</h4>
-            <p><strong>Definition:</strong> Not an exoplanet</p>
-            <p><strong>Confidence:</strong> >80%</p>
-            <p><strong>Common Causes:</strong></p>
-            <ul>
-                <li>Binary star systems</li>
-                <li>Stellar variability</li>
-                <li>Instrumental artifacts</li>
-            </ul>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with col3:
-        st.markdown("""
-        <div class="info-box">
-            <h4>🔍 CANDIDATE</h4>
-            <p><strong>Definition:</strong> Requires additional data</p>
-            <p><strong>Confidence:</strong> 50-85%</p>
-            <p><strong>Next Steps:</strong></p>
-            <ul>
-                <li>Additional observations</li>
-                <li>Follow-up analysis</li>
-                <li>Radial velocity confirmation</li>
-            </ul>
-        </div>
-        """, unsafe_allow_html=True)
-
-    st.markdown("---")
+    
 
     # Using the System
     st.markdown("## 🚀 Using the System")
@@ -1629,110 +1529,13 @@ elif st.session_state.current_page == 'Help':
         Save training results as JSON for future reference
         """)
 
-    st.markdown("---")
+    
 
-    # Data Requirements
-    st.markdown("## 📊 Data Requirements")
+    
 
-    col1, col2 = st.columns(2)
+    
 
-    with col1:
-        st.markdown("### Inference Features (11)")
-        for i, header in enumerate(EXPECTED_HEADERS_INFERENCE, 1):
-            st.markdown(f"**{i}. `{header}`**")
-            st.caption(HEADER_DESCRIPTIONS.get(header, ""))
-
-    with col2:
-        st.markdown("### Training Features (17)")
-        st.info("All inference features plus additional parameters and target variable")
-        st.markdown("""
-        **Additional Required:**
-        - `st_pmdec`, `st_pmra` (Proper motion)
-        - `dec`, `ra` (Coordinates)
-        - `pl_tranmid` (Transit midpoint)
-        - `exoplanet_status` (Target label)
-        """)
-
-    st.markdown("---")
-
-    # API Information
-    st.markdown("## 🔌 API Information")
-
-    with st.expander("**API Endpoints**"):
-        st.markdown(f"""
-        **Backend URL:** `{API_URL}`
-
-        **Available Endpoints:**
-        - `POST /inference/classify-csv` - Classify exoplanet candidates
-        - `GET /inference/get-models` - List available models
-        - `POST /model/train` - Train new model
-        - `POST /dataset/upload` - Upload dataset to server
-
-        **Request Format:**
-        Multipart form data with CSV file attachment
-
-        **Response Format:**
-        - Inference: CSV file with predictions
-        - Training: JSON with metrics and model info
-        """)
-
-    st.markdown("---")
-
-    # Troubleshooting
-    st.markdown("## 🔧 Troubleshooting")
-
-    with st.expander("**❌ Common Issues & Solutions**"):
-        st.markdown("""
-        **Problem:** "Missing Required Headers" error
-        **Solution:** Use the header editor to rename columns to match expected format
-
-        ---
-
-        **Problem:** "Connection Error" message
-        **Solution:** Check that the backend server is running and accessible
-
-        ---
-
-        **Problem:** Model training fails
-        **Solution:** Ensure dataset has minimum 1000 samples and includes `exoplanet_status` column
-
-        ---
-
-        **Problem:** Invalid JSON in Expert Mode
-        **Solution:** Verify JSON syntax - use JSON validator or reset to defaults
-
-        ---
-
-        **Problem:** Low classification confidence
-        **Solution:** Consider:
-        - Using more training data
-        - Adjusting hyperparameters
-        - Checking data quality
-        """)
-
-    st.markdown("---")
-
-    # Contact & Support
-    st.markdown("## 💬 Contact & Support")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown("""
-        **For Technical Support:**
-        - Check the troubleshooting section above
-        - Review the API documentation
-        - Verify data format requirements
-        """)
-
-    with col2:
-        st.markdown("""
-        **System Information:**
-        - **Backend:** FastAPI
-        - **Frontend:** Streamlit
-        - **Models:** LightGBM + Gradient Boosting
-        - **Version:** 1.0.0
-        """)
+    
 
 # ---------------------------
 # Footer

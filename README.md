@@ -1,22 +1,24 @@
-# Exoplanet Classification API 🚀
+# Exoplanet Classification App 🚀
 
-An AI/ML-powered FastAPI server for classifying exoplanets using NASA's TESS (Transiting Exoplanet Survey Satellite) data. This project implements a machine learning pipeline that analyzes astronomical data to identify potential exoplanets, planetary candidates, or false positives.
+An AI/ML-powered Streamlit web application for classifying exoplanets using NASA's TESS (Transiting Exoplanet Survey Satellite) data. This project provides an intuitive interface for uploading astronomical data and getting real-time exoplanet classifications.
 
 ## 🌟 Features
 
+- **Interactive Web Interface**: User-friendly Streamlit dashboard for data upload and analysis
 - **Machine Learning Pipeline**: Pre-trained stacking ensemble model for exoplanet classification
-- **RESTful API**: FastAPI-based web service with automatic documentation
 - **CSV Upload Support**: Upload astronomical data for batch classification
-- **Confidence Scoring**: Provides prediction confidence levels for each classification
+- **Real-time Results**: Instant visualization of classification results with confidence scores
+- **Model Management**: Train new models and manage existing ones
+- **Dataset Management**: Upload and manage datasets on the server
+- **Header Validation**: Smart column header validation and editing
 - **Docker Support**: Containerized deployment with Docker and Docker Compose
-- **Health Monitoring**: Built-in health checks and model status endpoints
-- **CORS Enabled**: Cross-origin resource sharing for web integration
 
 ## 🏗️ Architecture
 
-The project uses a modular architecture with the following components:
+The project uses a client-server architecture with the following components:
 
-- **FastAPI Server** (`src/main.py`): Main application with CORS middleware
+- **Streamlit Frontend** (`app.py`): Interactive web interface for users
+- **FastAPI Backend** (`src/main.py`): REST API server for ML operations
 - **Inference Router** (`src/api/routers/inference.py`): Handles classification endpoints
 - **TOI Model** (`src/models/toi.py`): Manages the pre-trained machine learning model
 - **Docker Configuration**: Multi-stage builds with optimized Python 3.12 image
@@ -42,20 +44,14 @@ The project uses a modular architecture with the following components:
    uv sync
    ```
 
-3. **Start the server**
+3. **Start the Streamlit app**
    ```bash
-   ./start_server.sh
-   ```
-   Or manually:
-   ```bash
-   source .venv/bin/activate
-   uvicorn src.main:app --reload --port 8081
+   streamlit run app.py --server.port 8501
    ```
 
-4. **Access the API**
-   - API Documentation: http://localhost:8081/docs
-   - Health Check: http://localhost:8081/health
-   - Interactive API: http://localhost:8081/redoc
+4. **Access the application**
+   - Streamlit App: http://localhost:8501
+   - Backend API: http://localhost:8000 (if running separately)
 
 ### Docker Deployment
 
@@ -70,20 +66,21 @@ The project uses a modular architecture with the following components:
    docker run -p 8000:8000 exoplanet-api
    ```
 
-## 📡 API Endpoints
+## 🖥️ Application Features
 
-### Health & Status
-- `GET /` - Basic health check
-- `GET /health` - Detailed health status
-- `GET /inference/model-status` - Model loading status
+### Main Pages
+- **🔮 Inference**: Upload CSV files and classify exoplanet candidates
+- **🎓 Training**: Train new machine learning models with custom datasets
+- **🤖 Models**: View and manage available models
+- **📊 Dataset**: Upload and manage datasets on the server
+- **❓ Help**: Comprehensive documentation and troubleshooting guide
 
-### Classification
-- `POST /inference/classify` - Classify exoplanets (returns JSON)
-- `POST /inference/classify-csv` - Classify exoplanets (returns CSV download)
-
-### API Documentation
-- `GET /docs` - Interactive Swagger UI
-- `GET /redoc` - ReDoc documentation
+### Key Capabilities
+- **Smart Header Validation**: Automatically detects and allows editing of CSV column headers
+- **Real-time Classification**: Instant results with confidence scores and visualizations
+- **Model Management**: Train, load, and switch between different models
+- **Data Visualization**: Interactive tables with color-coded classification results
+- **Export Results**: Download classification results as CSV files
 
 ## 🔬 Model Details
 
@@ -97,18 +94,34 @@ The classification model is a **stacking ensemble** trained on NASA's TESS data:
 
 ## 📊 Usage Examples
 
-### Upload CSV for Classification
+### Using the Streamlit Interface
+
+1. **Start the application**
+   ```bash
+   streamlit run app.py
+   ```
+
+2. **Navigate to Inference page**
+   - Click on "🔮 Inference" in the sidebar
+   - Load available models from the backend
+   - Upload your CSV file with exoplanet data
+
+3. **Validate and classify**
+   - Edit column headers if needed
+   - Click "🚀 Classify Exoplanets"
+   - View results with confidence scores
+   - Download results as CSV
+
+### Direct API Usage (Backend)
 
 ```bash
-curl -X POST "http://localhost:8081/inference/classify" \
+# Upload CSV for classification
+curl -X POST "http://localhost:8000/inference/classify-csv" \
      -H "Content-Type: multipart/form-data" \
      -F "csv_file=@your_data.csv"
-```
 
-### Check Model Status
-
-```bash
-curl -X GET "http://localhost:8081/inference/model-status"
+# Check model status
+curl -X GET "http://localhost:8000/inference/model-status"
 ```
 
 ## 🛠️ Development
@@ -116,12 +129,13 @@ curl -X GET "http://localhost:8081/inference/model-status"
 ### Project Structure
 ```
 exoplanet/
+├── app.py                   # Streamlit frontend application
 ├── src/
 │   ├── api/
 │   │   ├── models/          # Request/Response models
 │   │   └── routers/         # API route handlers
 │   ├── models/              # ML model classes
-│   └── main.py              # FastAPI application
+│   └── main.py              # FastAPI backend application
 ├── models/                  # Pre-trained model files
 ├── data/                    # Training datasets
 ├── dockerfiles/             # Docker configurations
@@ -131,12 +145,13 @@ exoplanet/
 
 ### Dependencies
 
-- **FastAPI**: Web framework
+- **Streamlit**: Frontend web interface
+- **FastAPI**: Backend web framework
 - **scikit-learn**: Machine learning
 - **LightGBM**: Gradient boosting
 - **pandas**: Data manipulation
 - **joblib**: Model serialization
-- **uvicorn**: ASGI server
+- **requests**: HTTP client for API calls
 
 ## 🐳 Docker Configuration
 
@@ -145,26 +160,28 @@ The project includes optimized Docker configurations:
 - **Base Image**: Python 3.12-slim
 - **Package Manager**: UV for fast dependency resolution
 - **System Dependencies**: LightGBM runtime libraries
-- **Port**: 8000 (configurable)
+- **Ports**: 8501 (Streamlit), 8000 (FastAPI backend)
 - **Volume Mounting**: Source code for development
 
 ## 📈 Performance
 
-- **Model Loading**: Automatic on startup
+- **Interactive Interface**: Real-time data visualization and editing
+- **Model Loading**: Automatic on backend startup
 - **Prediction Speed**: Optimized for batch processing
 - **Memory Usage**: Efficient with large datasets
-- **Concurrent Requests**: ASGI-based async handling
+- **User Experience**: Intuitive drag-and-drop file uploads
 
 ## 🔧 Configuration
 
 ### Environment Variables
-- `PORT`: Server port (default: 8000)
-- `HOST`: Server host (default: 0.0.0.0)
+- `PORT`: Backend server port (default: 8000)
+- `HOST`: Backend server host (default: 0.0.0.0)
+- `API_URL`: Backend API URL (configured in app.py)
 
 ### Model Configuration
 - Model path: `models/toi_stacking_pipeline.joblib`
-- Auto-loading: Enabled on startup
-- Error handling: Graceful fallback
+- Auto-loading: Enabled on backend startup
+- Error handling: Graceful fallback with user-friendly messages
 
 ## 🤝 Contributing
 
@@ -182,11 +199,11 @@ This project is part of a NASA exoplanet classification challenge. Please refer 
 
 - NASA for providing the TESS exoplanet datasets
 - The astronomical community for open-source tools and libraries
-- FastAPI and scikit-learn communities for excellent documentation
+- Streamlit, FastAPI, and scikit-learn communities for excellent documentation
 
 ---
 
-**Status**: ✅ Production Ready | **Version**: 1.0.0 | **Python**: 3.12+
+**Status**: ✅ Production Ready | **Version**: 1.0.0 | **Python**: 3.12+ | **Frontend**: Streamlit | **Backend**: FastAPI
 
 
 
